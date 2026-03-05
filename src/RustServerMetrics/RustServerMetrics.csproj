@@ -19,7 +19,7 @@
 
 		<LangVersion>10</LangVersion>
 
-		<Nullable>disable</Nullable>
+		<Nullable>enable</Nullable>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)' == 'Linux'">
