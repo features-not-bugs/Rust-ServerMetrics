@@ -19,15 +19,15 @@ internal static class InvokeHandlerBase_DoTick_Patch
 
     private static readonly Stopwatch Stopwatch = new();
 
-    private static readonly List<CodeInstruction> NeedleSequenceToFind = new()
+    private static readonly CodeMatch[] NeedleSequenceToFind =
     {
-        new CodeInstruction(OpCodes.Ldfld, AccessTools.Field(typeof(InvokeAction), nameof(InvokeAction.action))),
-        new CodeInstruction(OpCodes.Callvirt, AccessTools.Method(typeof(Action), nameof(Action.Invoke)))
+        CodeMatch.LoadsField(AccessTools.Field(typeof(InvokeAction), nameof(InvokeAction.action))),
+        CodeMatch.Calls(AccessTools.Method(typeof(Action), nameof(Action.Invoke)))
     };
 
-    private static readonly List<CodeInstruction> SequenceToInject = new()
+    private static readonly CodeInstruction[] SequenceToInject =
     {
-        new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(InvokeHandlerBase_DoTick_Patch), nameof(InvokeWrapper)))
+        new(OpCodes.Call, AccessTools.Method(typeof(InvokeHandlerBase_DoTick_Patch), nameof(InvokeWrapper)))
     };
 
     #endregion
@@ -54,16 +54,26 @@ internal static class InvokeHandlerBase_DoTick_Patch
     }
 
     [HarmonyTranspiler]
-    public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> originalInstructions, MethodBase methodBase)
+    public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> originalInstructions)
     {
         var instructionsList = originalInstructions.ToList();
-            
-        if (!instructionsList.ReplaceSequence(NeedleSequenceToFind, SequenceToInject))
+        
+        try
         {
-            UnityEngine.Debug.LogError("[ServerMetrics] Failed to patch InvokeHandlerBase_DoTick_Patch. Unable to find the expected injection point.");
-        }
+            var codeMatcher = new CodeMatcher(instructionsList);
 
-        return instructionsList;
+            codeMatcher.MatchStartForward(NeedleSequenceToFind)
+                       .ThrowIfInvalid("Unable to find the expected injection point")
+                       .RemoveInstructions(2)
+                       .InsertAndAdvance(SequenceToInject);
+
+            return codeMatcher.Instructions();
+        }
+        catch (Exception e)
+        {
+            UnityEngine.Debug.LogError($"[ServerMetrics] {nameof(InvokeHandlerBase_DoTick_Patch)}: " + e.Message);
+            return instructionsList;
+        }
     }
         
     #endregion
